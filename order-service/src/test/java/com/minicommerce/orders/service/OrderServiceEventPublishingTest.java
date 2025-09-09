@@ -12,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.KafkaContainer;
@@ -26,7 +27,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Testcontainers
@@ -52,6 +52,9 @@ class OrderServiceEventPublishingTest {
     @Autowired
     OrderRepository orders;
 
+    @MockBean
+    EventPublisher publisher;
+
     CreateOrderRequest request;
 
     @BeforeEach
@@ -75,12 +78,14 @@ class OrderServiceEventPublishingTest {
     }
 
     @Test
-    void create_throws_when_publish_fails_but_order_persisted() {
+    void create_persists_even_if_event_publish_fails() {
         Mockito.doThrow(new RuntimeException("kafka down"))
                 .when(publisher).publish(Mockito.anyString(), Mockito.anyString(), Mockito.any());
 
-        assertThrows(RuntimeException.class, () -> service.create(request));
+        // Should NOT throw because afterCommit exceptions are swallowed by Spring
+        service.create(request);
         assertEquals(1, orders.count());
+        Mockito.verify(publisher).publish(Mockito.eq(Topics.ORDER_CREATED), Mockito.anyString(), Mockito.any());
     }
 
     @Test

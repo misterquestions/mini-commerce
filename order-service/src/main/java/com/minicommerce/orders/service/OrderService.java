@@ -19,12 +19,15 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class OrderService {
     private final OrderRepository orders;
     private final CustomerRepository customers;
     private final EventPublisher events;
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     public OrderService(OrderRepository orders, CustomerRepository customers, EventPublisher events) {
         this.orders = orders;
@@ -68,17 +71,21 @@ public class OrderService {
                 var items = saved.getItems().stream()
                         .map(i -> new OrderCreatedEvent.Item(i.getSku(), i.getName(), i.getQuantity(), i.getUnitPrice()))
                         .toList();
-                events.publish(Topics.ORDER_CREATED, saved.getId().toString(),
-                        new OrderCreatedEvent(
-                                "order.created",
-                                "v1",
-                                saved.getId(),
-                                saved.getCustomerId(),
-                                saved.getCurrency(),
-                                saved.getTotal(),
-                                saved.getCreatedAt(),
-                                items
-                        ));
+                try {
+                    events.publish(Topics.ORDER_CREATED, saved.getId().toString(),
+                            new OrderCreatedEvent(
+                                    "order.created",
+                                    "v1",
+                                    saved.getId(),
+                                    saved.getCustomerId(),
+                                    saved.getCurrency(),
+                                    saved.getTotal(),
+                                    saved.getCreatedAt(),
+                                    items
+                            ));
+                } catch (RuntimeException e) {
+                    log.error("Failed to publish ORDER_CREATED event for order {}: {}", saved.getId(), e.getMessage(), e);
+                }
             }
         });
 
@@ -106,14 +113,18 @@ public class OrderService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                events.publish(Topics.ORDER_CANCELLED, saved.getId().toString(),
-                        new OrderCancelledEvent(
-                                "order.cancelled",
-                                "v1",
-                                saved.getId(),
-                                OffsetDateTime.now(),
-                                null
-                        ));
+                try {
+                    events.publish(Topics.ORDER_CANCELLED, saved.getId().toString(),
+                            new OrderCancelledEvent(
+                                    "order.cancelled",
+                                    "v1",
+                                    saved.getId(),
+                                    OffsetDateTime.now(),
+                                    null
+                            ));
+                } catch (RuntimeException e) {
+                    log.error("Failed to publish ORDER_CANCELLED event for order {}: {}", saved.getId(), e.getMessage(), e);
+                }
             }
         });
 
