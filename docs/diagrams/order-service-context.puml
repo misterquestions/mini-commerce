@@ -1,0 +1,27 @@
+@startuml OrderServiceContext
+skinparam monochrome true
+skinparam shadowing false
+
+rectangle "Order Service (Spring Boot)" as Order {
+  [API Layer]
+  [OrderService] --> [JPA Repositories]
+  [EventPublisher]
+}
+
+node "PostgreSQL" as PG
+cloud "Kafka" as Kafka
+node "Payment Service" as Payment
+node "Inventory Service" as Inventory
+node "Fulfillment Service" as Fulfillment
+node "Analytics Service" as Analytics
+
+[OrderService] --> PG : persist orders/items
+[OrderService] --> [EventPublisher]
+[EventPublisher] --> Kafka : order.created / order.cancelled
+Kafka --> Payment : order.created
+Kafka --> Analytics : all events (consume)
+Payment --> Kafka : payment.* (future)
+Kafka --> OrderService : payment.* (future state transitions)
+Kafka --> Inventory : order.paid (future)
+Kafka --> Fulfillment : order.fulfillment_requested (future)
+@enduml

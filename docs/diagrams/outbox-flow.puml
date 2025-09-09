@@ -1,0 +1,28 @@
+@startuml OutboxFlow
+skinparam monochrome true
+skinparam shadowing false
+
+actor User
+participant "Order API" as API
+participant "Order Service" as Service
+database "Postgres" as PG
+collections "Outbox Table" as Outbox
+participant "Relay (Scheduler)" as Relay
+queue "Kafka" as Kafka
+participant "Downstream Service" as DS
+
+User -> API: POST /orders
+API -> Service: createOrder()
+Service -> PG: BEGIN TX
+Service -> PG: INSERT order, items
+Service -> Outbox: INSERT NEW event row
+Service -> PG: COMMIT
+Service -> User: 201 Created
+
+== Async Publish ==
+Relay -> Outbox: SELECT NEW rows FOR UPDATE SKIP LOCKED
+Relay -> Kafka: Publish event
+Kafka -> DS: Consume event
+Relay -> Outbox: UPDATE row -> SENT
+
+@enduml

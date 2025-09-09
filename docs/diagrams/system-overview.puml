@@ -1,0 +1,45 @@
+@startuml SystemOverview
+skinparam monochrome true
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+rectangle "Client / Admin UI (React)" as UI
+node "Gateway (NestJS)" as Gateway
+node "Order Service\n(Spring Boot)" as Order
+node "Payment Service\n(NestJS)" as Payment
+node "Inventory Service\n(FastAPI)" as Inventory
+node "Fulfillment Service\n(Go)" as Fulfillment
+node "Analytics Service\n(FastAPI)" as Analytics
+cloud "Kafka" as Kafka
+folder "PostgreSQL" as PG
+folder "MongoDB" as Mongo
+storage "dbt / Warehouse" as Dbt
+folder "pgvector" as Vector
+
+UI --> Gateway
+Gateway --> Order : REST
+Gateway --> Payment : REST
+Gateway --> Inventory : REST (internal)
+Gateway --> Analytics : REST
+
+Order --> PG
+Payment --> PG : payments
+Fulfillment --> PG : fulfillment_logs
+Analytics --> PG : read-only
+Inventory --> Mongo : products / inventory_events
+Analytics --> Vector : embeddings
+Vector -[hidden]-> PG
+
+Order --> Kafka : publish order.*
+Payment --> Kafka : publish payment.*
+Inventory --> Kafka : publish inventory.*
+Fulfillment --> Kafka : publish fulfillment.*
+Kafka --> Order : payment.*, inventory.*, fulfillment.*
+Kafka --> Inventory : order.paid
+Kafka --> Fulfillment : order.fulfillment_requested
+Kafka --> Analytics : all (consume)
+
+Analytics --> Dbt : queries (metrics)
+Dbt --> Analytics : marts / semantics
+
+@enduml

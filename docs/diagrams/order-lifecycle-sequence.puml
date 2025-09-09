@@ -1,0 +1,34 @@
+@startuml OrderLifecycleSequence
+skinparam monochrome true
+skinparam shadowing false
+
+actor User
+participant "Gateway" as GW
+participant "Order Service" as OS
+participant "Kafka" as K
+participant "Payment Service" as PS
+participant "Inventory Service" as IS
+participant "Fulfillment Service" as FS
+participant "Analytics Service" as AS
+
+User -> GW: POST /orders
+GW -> OS: POST /orders
+OS -> OS: Persist Order (DB tx)
+OS -> K: order.created
+K -> PS: order.created
+PS -> PS: Process Payment (idempotent)
+PS -> K: payment.approved
+K -> OS: payment.approved
+OS -> K: order.paid (future)
+K -> IS: order.paid
+IS -> IS: Reserve Stock
+IS -> K: inventory.reserved
+K -> OS: inventory.reserved
+OS -> K: order.fulfillment_requested (future)
+K -> FS: order.fulfillment_requested
+FS -> FS: Ship / simulate carrier
+FS -> K: fulfillment.shipped
+K -> OS: fulfillment.shipped
+OS -> OS: Update status -> fulfilled
+K -> AS: ALL events (analytics ingest)
+@enduml
