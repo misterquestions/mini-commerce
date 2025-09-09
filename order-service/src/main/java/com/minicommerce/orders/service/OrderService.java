@@ -1,6 +1,10 @@
 package com.minicommerce.orders.service;
 
 import com.minicommerce.orders.domain.*;
+import com.minicommerce.orders.events.EventPublisher;
+import com.minicommerce.orders.events.OrderCancelledEvent;
+import com.minicommerce.orders.events.OrderCreatedEvent;
+import com.minicommerce.orders.events.Topics;
 import com.minicommerce.orders.repository.CustomerRepository;
 import com.minicommerce.orders.repository.OrderRepository;
 import com.minicommerce.orders.web.dto.CreateOrderRequest;
@@ -9,18 +13,23 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
 public class OrderService {
     private final OrderRepository orders;
     private final CustomerRepository customers;
+    private final EventPublisher events;
 
-    public OrderService(OrderRepository orders, CustomerRepository customers) {
+    public OrderService(OrderRepository orders, CustomerRepository customers, EventPublisher events) {
         this.orders = orders;
         this.customers = customers;
+        this.events = events;
     }
 
     @Transactional
@@ -51,7 +60,29 @@ public class OrderService {
             total = total.add(itemRequest.unitPrice().multiply(BigDecimal.valueOf(itemRequest.quantity())));
         }
         order.setTotal(total);
-        return orders.save(order);
+        Order saved = orders.save(order);
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                var items = saved.getItems().stream()
+                        .map(i -> new OrderCreatedEvent.Item(i.getSku(), i.getName(), i.getQuantity(), i.getUnitPrice()))
+                        .toList();
+                events.publish(Topics.ORDER_CREATED, saved.getId().toString(),
+                        new OrderCreatedEvent(
+                                "order.created",
+                                "v1",
+                                saved.getId(),
+                                saved.getCustomerId(),
+                                saved.getCurrency(),
+                                saved.getTotal(),
+                                saved.getCreatedAt(),
+                                items
+                        ));
+            }
+        });
+
+        return saved;
     }
 
     public Order get(UUID id) {
@@ -70,6 +101,22 @@ public class OrderService {
             throw new IllegalStateException("Cannot cancel order in status: " + o.getStatus());
         }
         o.setStatus(OrderStatus.CANCELLED);
-        return orders.save(o);
+        Order saved = orders.save(o);
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                events.publish(Topics.ORDER_CANCELLED, saved.getId().toString(),
+                        new OrderCancelledEvent(
+                                "order.cancelled",
+                                "v1",
+                                saved.getId(),
+                                OffsetDateTime.now(),
+                                null
+                        ));
+            }
+        });
+
+        return saved;
     }
 }
