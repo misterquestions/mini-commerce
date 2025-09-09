@@ -1,0 +1,9 @@
+# Ensure shell scripts always use LF line endings
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Ensure batch files use CRLF on Windows
+*.bat text eol=crlf
+
+# Auto detect text files and perform LF normalization for most files
+* text=auto
