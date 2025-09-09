@@ -103,6 +103,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /api/v1/outbox/requeue-failed:
+    post:
+      tags: [Outbox]
+      summary: Requeue all FAILED outbox events
+      operationId: requeueFailedOutboxEvents
+      responses:
+        '200':
+          description: Count of requeued events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequeueFailedResponse'
+  /api/v1/outbox/{id}/requeue:
+    post:
+      tags: [Outbox]
+      summary: Requeue a single FAILED outbox event by id
+      operationId: requeueSingleOutboxEvent
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Event requeued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequeueSingleResponse'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   schemas:
     CreateOrderRequest:
@@ -118,11 +153,11 @@ components:
             $ref: '#/components/schemas/OrderItemRequest'
     OrderItemRequest:
       type: object
-      required: [sku, name, qty, unitPrice]
+      required: [sku, name, quantity, unitPrice]
       properties:
         sku: { type: string }
         name: { type: string }
-        qty: { type: integer, minimum: 1 }
+        quantity: { type: integer, minimum: 1 }
         unitPrice: { type: number, format: double, minimum: 0 }
     OrderResponse:
       type: object
@@ -144,7 +179,7 @@ components:
         id: { type: string, format: uuid }
         sku: { type: string }
         name: { type: string }
-        qty: { type: integer }
+        quantity: { type: integer }
         unitPrice: { type: number, format: double }
         lineTotal: { type: number, format: double }
     ApiError:
@@ -166,3 +201,11 @@ components:
         size: { type: integer }
         totalElements: { type: integer }
         totalPages: { type: integer }
+    RequeueFailedResponse:
+      type: object
+      properties:
+        requeued: { type: integer, minimum: 0 }
+    RequeueSingleResponse:
+      type: object
+      properties:
+        requeued: { type: string, format: uuid }

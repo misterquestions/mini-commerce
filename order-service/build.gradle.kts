@@ -21,6 +21,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.kafka:spring-kafka")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("com.networknt:json-schema-validator:1.0.86")
 
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
@@ -34,6 +36,7 @@ dependencies {
     testImplementation("org.flywaydb:flyway-core")
     testRuntimeOnly("org.postgresql:postgresql")
     testImplementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
+    testImplementation("org.awaitility:awaitility:4.2.0")
 }
 
 tasks.test {

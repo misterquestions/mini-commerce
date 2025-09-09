@@ -3,42 +3,31 @@ package com.minicommerce.orders.events;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
+import org.springframework.messaging.Message;
 
-import java.util.concurrent.CompletableFuture;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 class EventPublisherTest {
 
     @Test
-    void retries_on_failure() {
-        KafkaTemplate<String, Object> kafka = Mockito.mock(KafkaTemplate.class);
-        EventPublisher publisher = new EventPublisher(kafka);
+    void publish_invokes_single_send_only() {
+        KafkaTemplate<String, Object> kafkaTemplate = Mockito.mock(KafkaTemplate.class);
+        EventPublisher publisher = new EventPublisher(kafkaTemplate);
 
-        CompletableFuture<SendResult<String, Object>> fail = new CompletableFuture<>();
-        fail.completeExceptionally(new RuntimeException("fail"));
-        CompletableFuture<SendResult<String, Object>> success = new CompletableFuture<>();
-        success.complete(null);
-
-        Mockito.when(kafka.send(Mockito.anyString(), Mockito.anyString(), Mockito.any()))
-                .thenReturn(fail, fail, success);
-
-        publisher.publish("t", "k", new Object());
-        Mockito.verify(kafka, Mockito.times(3)).send(Mockito.anyString(), Mockito.anyString(), Mockito.any());
+        publisher.publish("topic", "key", "payload");
+        verify(kafkaTemplate, times(1)).send(anyString(), anyString(), any());
     }
 
     @Test
-    void throws_after_max_attempts() {
-        KafkaTemplate<String, Object> kafka = Mockito.mock(KafkaTemplate.class);
-        EventPublisher publisher = new EventPublisher(kafka);
-
-        CompletableFuture<SendResult<String, Object>> fail = new CompletableFuture<>();
-        fail.completeExceptionally(new RuntimeException("fail"));
-        Mockito.when(kafka.send(Mockito.anyString(), Mockito.anyString(), Mockito.any()))
-                .thenReturn(fail);
-
-        assertThrows(RuntimeException.class, () -> publisher.publish("t", "k", new Object()));
-        Mockito.verify(kafka, Mockito.times(3)).send(Mockito.anyString(), Mockito.anyString(), Mockito.any());
+    void publishWithHeaders_sends_envelope() {
+        KafkaTemplate<String, Object> kafkaTemplate = Mockito.mock(KafkaTemplate.class);
+        EventPublisher publisher = new EventPublisher(kafkaTemplate);
+        var envelope = new EventEnvelope<>(EventPublisher.newEventId(), "order.created", "v1", java.time.OffsetDateTime.now(), "order", "agg-1", "trace-1", new Object());
+        publisher.publishWithHeaders("topic", "key", envelope);
+        // Explicitly match Message<?> overload to avoid ambiguity with ProducerRecord send()
+        verify(kafkaTemplate, times(1)).send(Mockito.<Message<?>>any());
     }
 }

@@ -1,17 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mini-commerce.local/schemas/order.cancelled.v1.json",
-  "title": "order.cancelled.v1",
+  "title": "order.cancelled.v1 envelope",
   "type": "object",
   "additionalProperties": false,
-  "required": ["orderId", "cancelledAt"],
+  "required": ["eventId", "type", "version", "occurredAt", "aggregateType", "aggregateId", "data"],
   "properties": {
-    "orderId": { "type": "string", "format": "uuid" },
-    "cancelledAt": { "type": "string", "format": "date-time" },
-    "reason": { "type": ["string", "null"], "maxLength": 256 },
+    "eventId": { "type": "string", "format": "uuid" },
     "type": { "type": "string", "const": "order.cancelled" },
-    "version": { "type": "string", "const": "1" }
+    "version": { "type": "string", "const": "v1" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "aggregateType": { "type": "string", "const": "order" },
+    "aggregateId": { "type": "string", "format": "uuid" },
+    "traceId": { "type": "string" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orderId", "cancelledAt"],
+      "properties": {
+        "orderId": { "type": "string", "format": "uuid" },
+        "cancelledAt": { "type": "string", "format": "date-time" },
+        "reason": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    }
   },
-  "description": "Canonical order.cancelled event (minimal) prior to envelope adoption."
+  "description": "Envelope + data payload for order.cancelled.v1 after transactional outbox adoption"
 }
-
