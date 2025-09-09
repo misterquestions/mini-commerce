@@ -36,6 +36,7 @@ dependencies {
     testImplementation("org.flywaydb:flyway-core")
     testRuntimeOnly("org.postgresql:postgresql")
     testImplementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
+    testImplementation("org.awaitility:awaitility:4.2.0")
 }
 
 tasks.test {
