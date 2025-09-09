@@ -92,9 +92,10 @@ class OrderIntegrationTest {
             ConsumerRecord<String, String> createdEvent = pollForEvent(consumer, Topics.ORDER_CREATED, order.id().toString());
             Assertions.assertNotNull(createdEvent, "ORDER_CREATED event not received");
             JsonNode createdJson = mapper.readTree(createdEvent.value());
-            Assertions.assertEquals(order.id().toString(), createdJson.get("orderId").asText());
             Assertions.assertEquals("order.created", createdJson.get("type").asText());
+            Assertions.assertEquals(order.id().toString(), createdJson.get("data").get("orderId").asText());
 
+            // cancel
             ResponseEntity<OrderResponse> cancelled = http.exchange(
                     "/api/v1/orders/{id}/cancel", HttpMethod.PATCH, HttpEntity.EMPTY, OrderResponse.class,
                     Map.of("id", order.id())
@@ -105,8 +106,8 @@ class OrderIntegrationTest {
             ConsumerRecord<String, String> cancelledEvent = pollForEvent(consumer, Topics.ORDER_CANCELLED, order.id().toString());
             Assertions.assertNotNull(cancelledEvent, "ORDER_CANCELLED event not received");
             JsonNode cancelledJson = mapper.readTree(cancelledEvent.value());
-            Assertions.assertEquals(order.id().toString(), cancelledJson.get("orderId").asText());
             Assertions.assertEquals("order.cancelled", cancelledJson.get("type").asText());
+            Assertions.assertEquals(order.id().toString(), cancelledJson.get("data").get("orderId").asText());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

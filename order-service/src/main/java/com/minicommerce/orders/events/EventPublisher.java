@@ -1,26 +1,30 @@
 package com.minicommerce.orders.events;
 
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
+
+import java.util.UUID;
 
 @Component
 public class EventPublisher {
-    private final KafkaTemplate<String, Object> kafka;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public EventPublisher(KafkaTemplate<String, Object> kafka) {
-        this.kafka = kafka;
+    public EventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    public static UUID newEventId() {
+        return UUID.randomUUID();
     }
 
     public void publish(String topic, String key, Object payload) {
-        RuntimeException last = null;
-        for (int attempt = 1; attempt <= 3; attempt++) {
-            try {
-                kafka.send(topic, key, payload).get();
-                return;
-            } catch (Exception e) {
-                last = new RuntimeException("Failed to publish to %s (attempt %d)".formatted(topic, attempt), e);
-            }
-        }
-        throw last;
+        kafkaTemplate.send(topic, key, payload); // single attempt; outbox handles retries
+    }
+
+    public void publishWithHeaders(String topic, String key, EventEnvelope<?> envelope) {
+        var message = MessageBuilder.withPayload(envelope).setHeader(KafkaHeaders.TOPIC, topic).setHeader(KafkaHeaders.KEY, key).setHeader("eventId", envelope.eventId().toString()).setHeader("aggregateId", envelope.aggregateId()).setHeader("aggregateType", envelope.aggregateType()).setHeader("eventType", envelope.type()).setHeader("eventVersion", envelope.version()).setHeader("traceId", envelope.traceId()).build();
+        kafkaTemplate.send(message);
     }
 }

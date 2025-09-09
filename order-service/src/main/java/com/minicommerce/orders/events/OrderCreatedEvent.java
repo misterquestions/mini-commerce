@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.UUID;
 
 public record OrderCreatedEvent(
-        String type,
-        String version,
         UUID orderId,
         UUID customerId,
         String currency,

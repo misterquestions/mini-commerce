@@ -1,49 +1,48 @@
 package com.minicommerce.orders.service;
 
 import com.minicommerce.orders.domain.*;
-import com.minicommerce.orders.events.EventPublisher;
+import com.minicommerce.orders.events.EventEnvelope;
 import com.minicommerce.orders.events.OrderCancelledEvent;
 import com.minicommerce.orders.events.OrderCreatedEvent;
 import com.minicommerce.orders.events.Topics;
+import com.minicommerce.orders.outbox.OutboxService;
 import com.minicommerce.orders.repository.CustomerRepository;
 import com.minicommerce.orders.repository.OrderRepository;
 import com.minicommerce.orders.web.dto.CreateOrderRequest;
 import com.minicommerce.orders.web.dto.OrderItemRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class OrderService {
-    private final OrderRepository orders;
-    private final CustomerRepository customers;
-    private final EventPublisher events;
+    private final OrderRepository orderRepository;
+    private final CustomerRepository customerRepository;
+    private final OutboxService outboxService;
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
-    public OrderService(OrderRepository orders, CustomerRepository customers, EventPublisher events) {
-        this.orders = orders;
-        this.customers = customers;
-        this.events = events;
+    public OrderService(OrderRepository orderRepository, CustomerRepository customerRepository, OutboxService outboxService) {
+        this.orderRepository = orderRepository;
+        this.customerRepository = customerRepository;
+        this.outboxService = outboxService;
     }
 
     @Transactional
     public Order create(CreateOrderRequest orderRequest) {
-        if (!customers.existsById(orderRequest.customerId())) {
+        if (!customerRepository.existsById(orderRequest.customerId())) {
             // auto-create minimal customer for demo purposes
             Customer c = new Customer();
             c.setId(orderRequest.customerId());
             c.setEmail(orderRequest.customerId() + "@demo.local");
             c.setName("Demo Customer");
-            customers.save(c);
+            customerRepository.save(c);
         }
 
         Order order = new Order();
@@ -63,70 +62,68 @@ public class OrderService {
             total = total.add(itemRequest.unitPrice().multiply(BigDecimal.valueOf(itemRequest.quantity())));
         }
         order.setTotal(total);
-        Order saved = orders.save(order);
+        Order saved = orderRepository.save(order);
 
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                var items = saved.getItems().stream()
-                        .map(i -> new OrderCreatedEvent.Item(i.getSku(), i.getName(), i.getQuantity(), i.getUnitPrice()))
-                        .toList();
-                try {
-                    events.publish(Topics.ORDER_CREATED, saved.getId().toString(),
-                            new OrderCreatedEvent(
-                                    "order.created",
-                                    "v1",
-                                    saved.getId(),
-                                    saved.getCustomerId(),
-                                    saved.getCurrency(),
-                                    saved.getTotal(),
-                                    saved.getCreatedAt(),
-                                    items
-                            ));
-                } catch (RuntimeException e) {
-                    log.error("Failed to publish ORDER_CREATED event for order {}: {}", saved.getId(), e.getMessage(), e);
-                }
-            }
-        });
+        var items = saved.getItems().stream()
+                .map(i -> new OrderCreatedEvent.Item(i.getSku(), i.getName(), i.getQuantity(), i.getUnitPrice()))
+                .toList();
+        var payload = new OrderCreatedEvent(
+                saved.getId(),
+                saved.getCustomerId(),
+                saved.getCurrency(),
+                saved.getTotal(),
+                saved.getCreatedAt(),
+                items
+        );
+        var envelope = new EventEnvelope<>(
+                UUID.randomUUID(),
+                "order.created",
+                "v1",
+                OffsetDateTime.now(),
+                "order",
+                saved.getId().toString(),
+                UUID.randomUUID().toString(),
+                payload
+        );
+        outboxService.persistEvent(Topics.ORDER_CREATED, saved.getId().toString(), "order", saved.getId().toString(), envelope);
 
         return saved;
     }
 
     public Order get(UUID id) {
-        return orders.findById(id).orElseThrow(() -> new RuntimeException("Order not found: " + id));
+        return orderRepository.findById(id).orElseThrow(() -> new RuntimeException("Order not found: " + id));
     }
 
     public Page<Order> list(OrderStatus status, Pageable pageable) {
-        if (status == null) return orders.findAll(pageable);
-        return orders.findByStatus(status, pageable);
+        if (status == null) return orderRepository.findAll(pageable);
+        return orderRepository.findByStatus(status, pageable);
     }
 
     @Transactional
     public Order cancel(UUID id) {
-        Order o = get(id);
-        if (o.getStatus() == OrderStatus.CANCELLED || o.getStatus() == OrderStatus.FULFILLED || o.getStatus() == OrderStatus.REFUNDED) {
-            throw new IllegalStateException("Cannot cancel order in status: " + o.getStatus());
+        Order existing = get(id);
+        if (existing.getStatus() == OrderStatus.CANCELLED || existing.getStatus() == OrderStatus.FULFILLED || existing.getStatus() == OrderStatus.REFUNDED) {
+            throw new IllegalStateException("Cannot cancel order in status: " + existing.getStatus());
         }
-        o.setStatus(OrderStatus.CANCELLED);
-        Order saved = orders.save(o);
+        existing.setStatus(OrderStatus.CANCELLED);
+        Order saved = orderRepository.save(existing);
 
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    events.publish(Topics.ORDER_CANCELLED, saved.getId().toString(),
-                            new OrderCancelledEvent(
-                                    "order.cancelled",
-                                    "v1",
-                                    saved.getId(),
-                                    OffsetDateTime.now(),
-                                    null
-                            ));
-                } catch (RuntimeException e) {
-                    log.error("Failed to publish ORDER_CANCELLED event for order {}: {}", saved.getId(), e.getMessage(), e);
-                }
-            }
-        });
+        var payload = new OrderCancelledEvent(
+                saved.getId(),
+                OffsetDateTime.now(),
+                null
+        );
+        var envelope = new EventEnvelope<>(
+                UUID.randomUUID(),
+                "order.cancelled",
+                "v1",
+                OffsetDateTime.now(),
+                "order",
+                saved.getId().toString(),
+                UUID.randomUUID().toString(),
+                payload
+        );
+        outboxService.persistEvent(Topics.ORDER_CANCELLED, saved.getId().toString(), "order", saved.getId().toString(), envelope);
 
         return saved;
     }
