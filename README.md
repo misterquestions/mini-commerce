@@ -10,7 +10,7 @@
 
 ## Architecture Overview
 
-![System Overview](docs/diagrams/system-overview.puml)
+![System Overview](docs/diagrams/image/system-overview.png)
 
 - **Gateway**: API aggregation, auth mock, rate limiting
 - **Order Service**: Authoritative order domain, event publishing, transactional outbox
@@ -70,4 +70,3 @@ See [docs/diagrams](docs/diagrams/) for more diagrams.
 ---
 
 For deep technical details, see each service's README and [docs/adr](docs/adr/).
-

@@ -23,7 +23,7 @@ Events are published to Kafka using a **transactional outbox** pattern:
 - Ensures exactly-once, reliable event delivery even if Kafka is temporarily unavailable
 - See [ADR: Transactional Outbox](../docs/adr/0001-transactional-outbox-for-domain-events.md)
 
-![Outbox Flow](../docs/diagrams/outbox-flow.puml)
+![Outbox Flow](../docs/diagrams/image/outbox-flow.png)
 
 ## Error Handling & Resilience
 - If Kafka is down, events are retried from the outbox
@@ -40,9 +40,9 @@ Events are published to Kafka using a **transactional outbox** pattern:
 - **Local dev**: See [../README.md](../README.md) for Docker Compose setup
 
 ## Diagrams
-- [Order Service Context](../docs/diagrams/order-service-context.puml)
-- [Order Lifecycle Sequence](../docs/diagrams/order-lifecycle-sequence.puml)
-- [Outbox Flow](../docs/diagrams/outbox-flow.puml)
+- ![Order Service Context](../docs/diagrams/image/order-service-context.png)
+- ![Order Lifecycle Sequence](../docs/diagrams/image/order-lifecycle-sequence.png)
+- ![Outbox Flow](../docs/diagrams/image/outbox-flow.png)
 
 ## Observability
 - OpenTelemetry traces, correlation IDs (orderId)
@@ -50,10 +50,9 @@ Events are published to Kafka using a **transactional outbox** pattern:
 
 ## Further Reading
 - [Transactional Outbox ADR](../docs/adr/0001-transactional-outbox-for-domain-events.md)
-- [System Overview](../docs/diagrams/system-overview.puml)
+- ![System Overview](../docs/diagrams/image/system-overview.png)
 - [OpenAPI Spec](src/main/resources/openapi/order-service.yaml)
 
 ---
 
 For questions, see the global [README](../README.md) or reach out to the team.
-

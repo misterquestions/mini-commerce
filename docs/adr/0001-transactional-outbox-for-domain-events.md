@@ -48,7 +48,7 @@ Phase 2:
 
 ## Diagram
 
-![Transactional Outbox Flow](../diagrams/outbox-flow.puml)
+![Transactional Outbox Flow](../diagrams/image/outbox-flow.png)
 
 This diagram illustrates the atomic commit of domain changes and outbox event, followed by asynchronous relay to Kafka. For more, see [Order Service README](../../order-service/README.md).
 
