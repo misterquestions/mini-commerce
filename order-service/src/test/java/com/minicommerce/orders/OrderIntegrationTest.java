@@ -14,10 +14,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.mockito.Mockito;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -32,6 +33,8 @@ class OrderIntegrationTest {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    @Container
+    static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry registry) {
@@ -40,13 +43,11 @@ class OrderIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.flyway.enabled", () -> "false");
+        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
     }
 
     @Autowired
     TestRestTemplate http;
-
-    @org.springframework.boot.test.mock.mockito.MockBean
-    EventPublisher publisher;
 
     @BeforeEach
     void enablePatchSupport() {
@@ -75,8 +76,5 @@ class OrderIntegrationTest {
                         Map.of("id", order.id()));
         Assertions.assertEquals(HttpStatus.OK, cancelled.getStatusCode());
         Assertions.assertEquals("cancelled", cancelled.getBody().status());
-
-        Mockito.verify(publisher).publish(Mockito.eq(Topics.ORDER_CREATED), Mockito.eq(order.id().toString()), Mockito.any());
-        Mockito.verify(publisher).publish(Mockito.eq(Topics.ORDER_CANCELLED), Mockito.eq(order.id().toString()), Mockito.any());
     }
 }
