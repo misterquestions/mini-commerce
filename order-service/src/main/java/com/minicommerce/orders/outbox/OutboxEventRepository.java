@@ -14,5 +14,7 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
     List<OutboxEvent> findBatchDue(@Param("now") OffsetDateTime now, @Param("limit") int limit);
 
     long countByStatus(OutboxStatus status);
-}
 
+    @Query("select min(e.createdAt) from OutboxEvent e where e.status in :statuses")
+    OffsetDateTime findOldestCreatedAtForStatuses(@Param("statuses") List<OutboxStatus> statuses);
+}

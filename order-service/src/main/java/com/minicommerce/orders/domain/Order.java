@@ -13,6 +13,9 @@ public class Order {
     @Id
     private UUID id;
 
+    @Version
+    private Long version;
+
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;
 
@@ -40,6 +43,22 @@ public class Order {
         this.items.add(item);
     }
 
+    @PrePersist
+    public void prePersist(){
+        var now = OffsetDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+        if(total == null) total = BigDecimal.ZERO;
+    }
+
+    @PreUpdate
+    public void preUpdate(){
+        updatedAt = OffsetDateTime.now();
+        if(total.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException("Order total cannot be negative");
+        }
+    }
+
     // getters/setters
     public UUID getId(){ return id; }
     public void setId(UUID id){ this.id = id; }
@@ -57,4 +76,6 @@ public class Order {
     public void setUpdatedAt(OffsetDateTime updatedAt){ this.updatedAt = updatedAt; }
     public List<OrderItem> getItems(){ return items; }
     public void setItems(List<OrderItem> items){ this.items = items; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

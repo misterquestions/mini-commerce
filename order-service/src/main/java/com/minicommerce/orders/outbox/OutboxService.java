@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.UUID;
+
 /**
  * Persists serialized event envelopes into the outbox table inside the same DB transaction
  * as the aggregate state change.
@@ -44,5 +47,31 @@ public class OutboxService {
             throw new IllegalStateException("Failed to persist outbox event", e);
         }
     }
-}
 
+    @Transactional
+    public int requeueFailed() {
+        var failed = outboxRepository.findAll().stream()
+                .filter(e -> e.getStatus() == OutboxStatus.FAILED)
+                .toList();
+        failed.forEach(ev -> {
+            ev.setStatus(OutboxStatus.RETRY);
+            ev.setAttempts(0);
+            ev.setNextAttemptAt(null);
+            ev.setLastError(null);
+        });
+        log.info("Requeued {} failed outbox events", failed.size());
+        return failed.size();
+    }
+
+    @Transactional
+    public boolean requeueSingle(UUID id) {
+        return outboxRepository.findById(id).map(ev -> {
+            ev.setStatus(OutboxStatus.RETRY);
+            ev.setAttempts(0);
+            ev.setNextAttemptAt(null);
+            ev.setLastError(null);
+            log.info("Requeued outbox event {}", id);
+            return true;
+        }).orElse(false);
+    }
+}

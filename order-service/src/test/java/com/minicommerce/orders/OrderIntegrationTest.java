@@ -33,6 +33,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
+import static org.awaitility.Awaitility.await;
+import java.time.Duration;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class OrderIntegrationTest {
@@ -114,17 +117,19 @@ class OrderIntegrationTest {
     }
 
     private ConsumerRecord<String, String> pollForEvent(KafkaConsumer<String, String> consumer, String topic, String key) {
-        long deadline = System.currentTimeMillis() + 10_000; // 10s
-
-        while (System.currentTimeMillis() < deadline) {
-            var records = consumer.poll(java.time.Duration.ofMillis(250));
-            for (ConsumerRecord<String, String> r : records) {
-                if (r.topic().equals(topic) && key.equals(r.key())) {
-                    return r;
-                }
-            }
-        }
-
-        return null;
+        final ConsumerRecord<String, String>[] holder = new ConsumerRecord[1];
+        await().atMost(Duration.ofSeconds(10))
+                .pollInterval(Duration.ofMillis(250))
+                .until(() -> {
+                    var records = consumer.poll(java.time.Duration.ofMillis(200));
+                    for (ConsumerRecord<String, String> r : records) {
+                        if (r.topic().equals(topic) && key.equals(r.key())) {
+                            holder[0] = r;
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+        return holder[0];
     }
 }
