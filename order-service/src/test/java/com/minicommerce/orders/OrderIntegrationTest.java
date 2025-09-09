@@ -1,18 +1,22 @@
 package com.minicommerce.orders;
 
+import com.minicommerce.orders.events.EventPublisher;
+import com.minicommerce.orders.events.Topics;
 import com.minicommerce.orders.web.dto.CreateOrderRequest;
 import com.minicommerce.orders.web.dto.OrderItemRequest;
 import com.minicommerce.orders.web.dto.OrderResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Assertions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.mockito.Mockito;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -22,27 +26,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Testcontainers
 class OrderIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16")
-            .withDatabaseName("minicommerce")
-            .withUsername("minicommerce")
-            .withPassword("minicommerce");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @BeforeAll
-    static void init() {
-        System.setProperty("spring.datasource.url", pg.getJdbcUrl());
-        System.setProperty("spring.datasource.username", pg.getUsername());
-        System.setProperty("spring.datasource.password", pg.getPassword());
-        System.setProperty("spring.jpa.hibernate.ddl-auto", "validate");
-        System.setProperty("spring.flyway.enabled", "true");
+    @DynamicPropertySource
+    static void datasourceProps(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.flyway.enabled", () -> "false");
     }
 
     @Autowired
     TestRestTemplate http;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    EventPublisher publisher;
 
     @BeforeEach
     void enablePatchSupport() {
@@ -71,5 +75,8 @@ class OrderIntegrationTest {
                         Map.of("id", order.id()));
         Assertions.assertEquals(HttpStatus.OK, cancelled.getStatusCode());
         Assertions.assertEquals("cancelled", cancelled.getBody().status());
+
+        Mockito.verify(publisher).publish(Mockito.eq(Topics.ORDER_CREATED), Mockito.eq(order.id().toString()), Mockito.any());
+        Mockito.verify(publisher).publish(Mockito.eq(Topics.ORDER_CANCELLED), Mockito.eq(order.id().toString()), Mockito.any());
     }
 }
